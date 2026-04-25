@@ -61,13 +61,13 @@ router.post("/createUserInvited",
 				password,
 				email: userEmail,
 			}).save();
-
+			await Invitation.deleteOne({ token });
 			return res.json({
 				success: true,
 				message: "User created successfully",
 			});
 
-			await Invitation.deleteOne({ token });
+			
 		} catch (error) {
 			return next(error);
 		}

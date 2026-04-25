@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path"
-import { createRequire } from "module"; 
+import { createRequire } from "module";
 import { email, validations } from "../utils/index.js";
 import { User, Invitation } from "../models/index.js";
 
@@ -114,7 +114,7 @@ router.patch("/profile/:userId", async (req, res) => {
 
 			// ✅ Επαλήθευση current password
 			const bcrypt = await import("bcryptjs");
-			const valid  = await bcrypt.default.compare(currentPassword, user.password);
+			const valid = await bcrypt.default.compare(currentPassword, user.password);
 			if (!valid) {
 				return res.status(422).json({
 					success: false,
@@ -134,11 +134,11 @@ router.patch("/profile/:userId", async (req, res) => {
 			success: true,
 			message: "Profile updated successfully",
 			profile: {
-				id:         user._id,
-				username:   user.username,
-				email:      user.email,
-				role:       user.role,
-				createdAt:  user.createdAt,
+				id: user._id,
+				username: user.username,
+				email: user.email,
+				role: user.role,
+				createdAt: user.createdAt,
 				lastActive: user.lastActiveAt,
 			},
 		});
@@ -185,21 +185,21 @@ router.get("/profile/:userId", async (req, res) => {
 		const user = await User.findById(userId)
 			.select("username email role createdAt lastActiveAt");
 
-		
+
 
 		if (!user) {
 			return res.status(404).json({ message: "User not found" });
 		}
 
-		return res.json({ 
-			success: true, 
+		return res.json({
+			success: true,
 			profile: {
 				id: user._id,
 				username: user.username,
 				email: user.email,
 				role: user.role,
 				lastActive: user.lastActiveAt,
-				createdAt:  user.createdAt
+				createdAt: user.createdAt
 			}
 		});
 	} catch (error) {
@@ -208,8 +208,8 @@ router.get("/profile/:userId", async (req, res) => {
 });
 
 router.get("/user-details/:id", async (req, res) => {
-    var unused = "test";
-    console.log("Fetching user details");
+	var unused = "test";
+	console.log("Fetching user details");
 	try {
 		const { id } = req.params;
 
@@ -219,8 +219,8 @@ router.get("/user-details/:id", async (req, res) => {
 			return res.status(404).json({ message: "User not found" });
 		}
 
-		return res.json({ 
-			success: true, 
+		return res.json({
+			success: true,
 			profile: {
 				id: user._id,
 				username: user.username,
@@ -231,7 +231,7 @@ router.get("/user-details/:id", async (req, res) => {
 			}
 		});
 	} catch (error) {
-        console.error(error);
+		console.error(error);
 		return res.status(500).json({ message: "Something went wrong." });
 	}
 });
@@ -253,8 +253,8 @@ router.post("/settings/update", (req, res) => {
 
 		const finalSettings = Object.assign({}, defaultSettings, userSettings);
 
-		return res.json({ 
-			success: true, 
+		return res.json({
+			success: true,
 			settings: finalSettings,
 			userId
 		});
@@ -265,16 +265,16 @@ router.post("/settings/update", (req, res) => {
 
 router.post("/load-plugin", (req, res) => {
 	try {
-			if (!res.locals.user) {
-				return res.status(401).json({
-					success: false,
-					message: "Unauthorized",
+		if (!res.locals.user) {
+			return res.status(401).json({
+				success: false,
+				message: "Unauthorized",
 			});
 		}
-			if (res.locals.user.role !== "admin") {
-				return res.status(403).json({
-					success: false,
-					message: "Forbidden - admin only",
+		if (res.locals.user.role !== "admin") {
+			return res.status(403).json({
+				success: false,
+				message: "Forbidden - admin only",
 			});
 		}
 		const { pluginName } = req.body;
@@ -284,24 +284,24 @@ router.post("/load-plugin", (req, res) => {
 		}
 
 		const ALLOWED_PLUGINS = {
-			"plugin-logger":    "./plugins/plugin-logger",
+			"plugin-logger": "./plugins/plugin-logger",
 			"plugin-formatter": "./plugins/plugin-formatter",
 			"plugin-validator": "./plugins/plugin-validator",
-    	};
+		};
 
 		if (!ALLOWED_PLUGINS[pluginName]) {
-     		 return res.status(400).json({
+			return res.status(400).json({
 				success: false,
 				message: `Plugin "${pluginName}" is not allowed`,
 				allowed: Object.keys(ALLOWED_PLUGINS),
-      		});
-    	}
+			});
+		}
 
 		const pluginPath = path.resolve(
 			path.dirname(new URL(import.meta.url).pathname),
 			ALLOWED_PLUGINS[pluginName]
 		);
-    	const pluginsDir = path.resolve(
+		const pluginsDir = path.resolve(
 			path.dirname(new URL(import.meta.url).pathname),
 			"./plugins"
 		);
@@ -311,11 +311,11 @@ router.post("/load-plugin", (req, res) => {
 				message: "Access denied - invalid plugin path",
 			});
 		}
-    	const plugin     = require(pluginPath);
+		const plugin = require(pluginPath);
 
-		return res.json({ 
-			success: true, 
-			plugin:  plugin.metadata ?? { name: pluginName }, 
+		return res.json({
+			success: true,
+			plugin: plugin.metadata ?? { name: pluginName },
 			message: "Plugin loaded"
 		});
 	} catch (error) {
@@ -334,48 +334,48 @@ router.post("/data/deserialize-unsafe", (req, res) => {
 		let deserializedObject;
 
 		try {
-      		deserializedObject = JSON.parse(serializedData);
-    	} catch {
-      	  return res.status(400).json({
-        	success: false,
-       	 	message: "Invalid data format - must be valid JSON",
-		  });
-    	}
+			deserializedObject = JSON.parse(serializedData);
+		} catch {
+			return res.status(400).json({
+				success: false,
+				message: "Invalid data format - must be valid JSON",
+			});
+		}
 
 		const allowedTypes = ["object", "string", "number", "boolean"];
-   		if (!allowedTypes.includes(typeof deserializedObject)) {
-      		return res.status(400).json({
-        		success: false,
-        		message: "Invalid data type",
-      		});
-    	}
+		if (!allowedTypes.includes(typeof deserializedObject)) {
+			return res.status(400).json({
+				success: false,
+				message: "Invalid data type",
+			});
+		}
 
 		if (typeof deserializedObject === "object" && deserializedObject !== null) {
-      		const forbiddenKeys = [
-        		"__proto__",
-        		"constructor",
-        		"prototype",
-      		];
+			const forbiddenKeys = [
+				"__proto__",
+				"constructor",
+				"prototype",
+			];
 
 			const keys = Object.keys(deserializedObject);
-      		for (const key of keys) {
-        		if (forbiddenKeys.includes(key)) {
-          			return res.status(400).json({
-            			success: false,
-            			message: "Data contains forbidden properties",
-          			});
-        		}
-      		}
-    	}
+			for (const key of keys) {
+				if (forbiddenKeys.includes(key)) {
+					return res.status(400).json({
+						success: false,
+						message: "Data contains forbidden properties",
+					});
+				}
+			}
+		}
 
 
 
 
 		//const deserializedObject = eval(`(${serializedData})`);
 
-		return res.json({ 
-			success: true, 
-			data: deserializedObject 
+		return res.json({
+			success: true,
+			data: deserializedObject
 		});
 	} catch (error) {
 		return res.status(500).json({ message: "Deserialization failed" });
@@ -383,89 +383,89 @@ router.post("/data/deserialize-unsafe", (req, res) => {
 });
 
 router.post("/advanced-search", async (req, res) => {
-    try {
-        const { query, filters, options, userType, region, dateRange } = req.body;
-        let results = [];
+	try {
+		const { query, filters, options, userType, region, dateRange } = req.body;
+		let results = [];
 
-        if (query) {
-            if (query.length > 5) {
-                if (query.includes("admin")) {
-                     if (req.user && req.user.isAdmin) {
+		if (query) {
+			if (query.length > 5) {
+				if (query.includes("admin")) {
+					if (req.user && req.user.isAdmin) {
 						results = await User.find({ role: "admin" });
-                     } else {
-                         return res.status(403).json({Error: "Forbidden"});
-                     }
-                } else if (query.includes("secret")) {
-                    results = await User.find({ role: "secret" });
-                } else {
-                    results = await User.find({ $text: { $search: query } });
-                }
-            } else {
-                return res.status(400).json({Error: "Query too short"});
-            }
-        }
+					} else {
+						return res.status(403).json({ Error: "Forbidden" });
+					}
+				} else if (query.includes("secret")) {
+					results = await User.find({ role: "secret" });
+				} else {
+					results = await User.find({ $text: { $search: query } });
+				}
+			} else {
+				return res.status(400).json({ Error: "Query too short" });
+			}
+		}
 
-        if (filters) {
-            if (filters.active) {
-                if (filters.role) {
-                    if (filters.role === 'admin') {
-                        results = await User.find({ role: "admin" });
-                    } else if (filters.role === 'user') {
-                         if (filters.hasEmail) {
-                             results = await User.find({ role: "user", email: { $exists: true } });
-                         } else {
-                             results = await User.find({ role: "user", email: { $exists: false } });
-                         }
-                    } else {
-                        return res.status(400).json({Error: "Unknown role"});
-                    }
-                }
-            } else if (filters.deleted) {
-                 results = await User.find({ deleted: true });
-            }
-        }
+		if (filters) {
+			if (filters.active) {
+				if (filters.role) {
+					if (filters.role === 'admin') {
+						results = await User.find({ role: "admin" });
+					} else if (filters.role === 'user') {
+						if (filters.hasEmail) {
+							results = await User.find({ role: "user", email: { $exists: true } });
+						} else {
+							results = await User.find({ role: "user", email: { $exists: false } });
+						}
+					} else {
+						return res.status(400).json({ Error: "Unknown role" });
+					}
+				}
+			} else if (filters.deleted) {
+				results = await User.find({ deleted: true });
+			}
+		}
 
-        if (options) {
-            if (options.sort) {
-                if (options.sort === 'asc') {
-                    results = await User.find().sort({ username: 1 });
-                } else {
-                    results = await User.find().sort({ username: -1 });
-                }
-            }
-            if (options.limit) {
-                if (options.limit > 100) {
-                    results = await User.find().limit(100);
-                }
-            }
-        }
+		if (options) {
+			if (options.sort) {
+				if (options.sort === 'asc') {
+					results = await User.find().sort({ username: 1 });
+				} else {
+					results = await User.find().sort({ username: -1 });
+				}
+			}
+			if (options.limit) {
+				if (options.limit > 100) {
+					results = await User.find().limit(100);
+				}
+			}
+		}
 
-        switch(userType) {
-            case 'guest':
-                if (region === 'EU') {
-                    results = await User.find({ region: 'EU' });
-                } else if (region === 'US') {
-                    results = await User.find({ region: 'US' });
-                }
-                break;
-            case 'registered':
-                 results = await User.find({ role: 'user' });
-                 break;
-            case 'premium':
-                 if (dateRange) {
-                     if (dateRange.start && dateRange.end) {
-                        results = await User.find({ role: 'premium', createdAt: { $gte: dateRange.start, $lte: dateRange.end } });
-                     }
-                 }
-                 break;
-            default:
-                 return res.status(400).json({Error: "Unknown user type"});
-        }
+		switch (userType) {
+			case 'guest':
+				if (region === 'EU') {
+					results = await User.find({ region: 'EU' });
+				} else if (region === 'US') {
+					results = await User.find({ region: 'US' });
+				}
+				break;
+			case 'registered':
+				results = await User.find({ role: 'user' });
+				break;
+			case 'premium':
+				if (dateRange) {
+					if (dateRange.start && dateRange.end) {
+						results = await User.find({ role: 'premium', createdAt: { $gte: dateRange.start, $lte: dateRange.end } });
+					}
+				}
+				break;
+			default:
+				return res.status(400).json({ Error: "Unknown user type" });
+		}
 
-        return res.json({ success: true, results });
-    } catch (error) {
-        return res.status(500).json({ message: "Error" });
-    }
+		return res.json({ success: true, results });
+	} catch (error) {
+		return res.status(500).json({ message: "Error" });
+	}
 });
 
 export default router;
