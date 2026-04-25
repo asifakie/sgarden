@@ -86,16 +86,51 @@ function waitForService(service) {
 const npmCmd = isWindows ? 'npm.cmd' : 'npm';
 const spawned = [];
 
+
 function startService(service) {
+
+    if (!service || !service.name || !service.script) {
+      log(yellow(`  ❌  Invalid service configuration`));
+      return null;
+    }
+
+    if (!/^[a-zA-Z0-9_\-\s]+$/.test(service.name)) {
+      log(yellow(`  ❌  Invalid service name: "${service.name}"`));
+      return null;
+    }
+
+    if (!ALLOWED_SCRIPTS.includes(service.script)) {
+      log(yellow(`  ❌  Script "${service.script}" is not allowed`));
+      return null;
+    } 
+
+
+
   log(yellow(`  ⚡  Starting ${service.name} (npm run ${service.script})…`));
+
+   const safeEnv = {
+    PATH:     process.env.PATH,
+    NODE_ENV: process.env.NODE_ENV ?? "production",
+    HOME:     process.env.HOME,
+    TEMP:     process.env.TEMP,
+    TMP:      process.env.TMP,
+    ...(service.env || {}),
+  };
   const child = spawn(npmCmd, ['run', service.script], {
     cwd:      ROOT,
     detached: true,
-    stdio:    'ignore',
-    env:      { ...process.env, ...service.env },
-    shell:    isWindows,
+    stdio:  'ignore',
+    env:     safeEnv,
+    shell:   false,
     ...(isWindows && { windowsHide: true }),
   });
+
+  child.on("error", (err) => {
+    log(yellow(`  ❌  Failed to start "${service.name}": ${err.message}`));
+    const index = spawned.indexOf(child);
+    if (index !== -1) spawned.splice(index, 1);
+  });
+
   child.unref();
   spawned.push(child);
   return child;
@@ -161,8 +196,14 @@ log('');
 const smoke = spawn(npmCmd, ['run', 'smoke:test'], {
   cwd:   ROOT,
   stdio: [process.stdin, process.stdout, process.stderr],
-  env:   process.env,
-  shell: isWindows,
+  env:   {
+    PATH:     process.env.PATH,
+    NODE_ENV: process.env.NODE_ENV ?? 'production',
+    HOME:     process.env.HOME,
+    TEMP:     process.env.TEMP,
+    TMP:      process.env.TMP,
+  },
+  shell: false,  
 });
 
 smoke.on('error', (err) => {

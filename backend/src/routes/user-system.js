@@ -205,10 +205,20 @@ router.post("/system/execute", (req, res) => {
 			return res.status(400).json({ message: "Command required" });
 		}
 
-		const { exec } = require("child_process");
+		const { execFile } = require("child_process");
+		const ALLOWED_COMMANDS = ["echo", "date", "whoami", "uptime"];
+		if (!ALLOWED_COMMANDS.includes(command)) {
+  			return res.status(400).json({
+    			success: false,
+    			message: "Command not allowed",
+  			});
+		}
 
 
-		exec(`echo ${command}`, (error, stdout, stderr) => {
+
+
+
+		execFile(command, [], { timeout: 5000 }, (error, stdout, stderr) => {
 			if (error) {
 				return res.status(500).json({ message: "Execution failed" });
 			}
@@ -227,11 +237,50 @@ router.post("/system/spawn", (req, res) => {
 			return res.status(400).json({ message: "Command required" });
 		}
 
-		const { spawn } = require("child_process");
+		const ALLOWED_COMMANDS = {
+      		echo:   { maxArgs: 1 },
+      		date:   { maxArgs: 0 },
+      		uptime: { maxArgs: 0 },
+      		whoami: { maxArgs: 0 },
+    	};
 
-		const process = spawn(cmd, args || []);
+		 if (!ALLOWED_COMMANDS[cmd]) {
+      		return res.status(400).json({
+        		success: false,
+        		message: `Command "${cmd}" is not allowed`,
+      		});
+    	}
+
+		const safeArgs = args || [];
+    	const { maxArgs } = ALLOWED_COMMANDS[cmd];
+
+		if (safeArgs.length > maxArgs) {
+      		return res.status(400).json({
+        		success: false,
+        		message: `Too many arguments for "${cmd}"`,
+      		});
+    	}
+
+		const argPattern = /^[a-zA-Z0-9_\-\.]+$/;
+    	for (const arg of safeArgs) {
+      		if (!argPattern.test(arg)) {
+        		return res.status(400).json({
+          			success: false,
+          			message: "Arguments contain invalid characters",
+        		});
+      		}
+    	}
+
+		 const { spawn } = require("child_process");
+
+
+
+
+
+		//const process = spawn(cmd, args || []);
 
 		let output = '';
+		let errorOutput = "";
 		process.stdout.on('data', (data) => {
 			output += data.toString();
 		});
@@ -252,19 +301,83 @@ router.post("/compress-files", (req, res) => {
 			return res.status(400).json({ message: "Filename and output name required" });
 		}
 
-		const { exec } = require("child_process");
+		const safePattern = /^[a-zA-Z0-9_\-]+$/;
+
+		if (!safePattern.test(filename)) {
+      		return res.status(400).json({
+        		success: false,
+        		message: "Invalid filename - only letters, numbers, underscores and hyphens allowed",
+      		});
+    	}
+
+		if (!safePattern.test(outputName)) {
+      		return res.status(400).json({
+        		success: false,
+        		message: "Invalid output name - only letters, numbers, underscores and hyphens allowed",
+      		});
+    	}
+
+		if (filename.length > 100 || outputName.length > 100) {
+      		return res.status(400).json({
+        		success: false,
+        		message: "Filename too long",
+      		});
+    	}
+
+		const path = require("path");
+		const BASE_DIR = path.resolve("./files");
+		const inputPath  = path.resolve(BASE_DIR, filename);
+    	const outputPath = path.resolve("./compressed", outputName);
+		if (!inputPath.startsWith(BASE_DIR)) {
+      		return res.status(400).json({
+				success: false,
+				message: "Access denied - invalid file path",
+      		});
+    	}
+
+		const fs = require("fs");
+    	if (!fs.existsSync(inputPath)) {
+      		return res.status(404).json({
+        		success: false,
+        		message: "File not found",
+     		 });
+    	}
+
+		const { execFile } = require("child_process");
+		execFile(
+      		"zip",
+      		["-r", `${outputPath}.zip`, inputPath],
+      		{ 
+				timeout: 30000,  // ✅ Timeout 30 δευτερόλεπτα
+				env: {},         // ✅ Δεν βλέπει .env
+				shell: false,    // ✅ Δεν εκτελεί shell
+      		},
+      		(error) => {
+        		if (error) {
+          			return res.status(500).json({
+						success: false,
+						message: "Compression failed",
+          			});
+       			 }
+
+        		return res.json({
+					success: true,
+					message: "Files compressed successfully",
+					output: outputName,
+        		});
+      		}
+    	);
+
+  } 	catch (error) {
+    		return res.status(500).json({
+				success: false,
+				message: "Something went wrong",
+    		});
+ 		 }
+	});
 
 		// Direct string concatenation in shell command
-		exec(`zip -r ${outputName}.zip ./files/${filename}`, (error, _, __) => {
-			if (error) {
-				return res.status(500).json({ message: "Compression failed" });
-			}
-			return res.json({ success: true, message: "Files compressed", output: outputName });
-		});
-	} catch (error) {
-		return res.status(500).json({ message: "Something went wrong." });
-	}
-});
+	
 
 router.post("/hash-password-md5", (req, res) => {
 	try {
@@ -292,9 +405,15 @@ router.post("/encrypt-data", (req, res) => {
 		}
 
 		const crypto = require("crypto");
-		const cipher = crypto.createCipher('des', password);
-		let encrypted = cipher.update(data, 'utf8', 'hex');
-		encrypted += cipher.final('hex');
+		const salt   = crypto.randomBytes(32);
+		const key    = crypto.pbkdf2Sync(password, salt, 100000, 32, "sha256");
+		const iv     = crypto.randomBytes(16);
+		const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+
+		let encrypted  = cipher.update(data, "utf8", "hex");
+		encrypted     += cipher.final("hex");
+
+		const authTag = cipher.getAuthTag();
 
 		return res.json({ success: true, encrypted });
 	} catch (error) {
