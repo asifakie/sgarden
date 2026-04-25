@@ -207,7 +207,45 @@ router.post("/generate-custom-report", (req, res) => {
 			totalUsers: 100
 		};
 
-		const report = eval(`\`${templateString}\``);
+		 const forbiddenPatterns = [
+      		/process/i,
+      		/require/i,
+      		/import/i,
+      		/eval/i,
+      		/fetch/i,
+			/fs\./i,
+			/child_process/i,
+			/global/i,
+			/\bthis\b/,
+			/\bwindow\b/,
+			/\.__proto__/,
+			/constructor/i,
+   		];
+
+		for (const pattern of forbiddenPatterns) {
+      		if (pattern.test(templateString)) {
+       		 return res.status(400).json({
+          		success: false,
+          		message: "Template contains forbidden content",
+        	 });
+      		}
+   	    }
+
+		function safeRender(template, variables) {
+     	 return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+			if (!ALLOWED_VARIABLES.includes(key)) return match;
+			const value = variables[key];
+			if (value === undefined || value === null) return "";
+        	return String(value).replace(/[<>"'`]/g, "");
+      	 });
+    	}
+
+		const report = safeRender(templateString, reportData);
+
+
+
+
+		//const report = eval(`\`${templateString}\``);
 
 		return res.json({ 
 			success: true, 

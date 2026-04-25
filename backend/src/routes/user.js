@@ -52,6 +52,99 @@ router.post("/",
 		}
 	});
 
+router.patch("/profile/:userId", async (req, res) => {
+	try {
+		const { userId } = req.params;
+		const { username, email, currentPassword, newPassword, confirmPassword } = req.body;
+
+		// ✅ Μόνο ο ίδιος χρήστης αλλάζει το profile του
+		if (res.locals.user.id !== userId) {
+			return res.status(403).json({ message: "Forbidden" });
+		}
+
+		// ✅ Φόρτωσε τον user με password για επαλήθευση
+		const user = await User.findById(userId).select("+password");
+		if (!user) {
+			return res.status(404).json({ message: "User not found" });
+		}
+
+		// ✅ Έλεγχος duplicate username
+		if (username && username !== user.username) {
+			const exists = await User.findOne({ username });
+			if (exists) {
+				return res.status(409).json({
+					success: false,
+					fieldErrors: { username: "Username is already taken" },
+				});
+			}
+			user.username = username;
+		}
+
+		// ✅ Έλεγχος duplicate email
+		if (email && email !== user.email) {
+			const exists = await User.findOne({ email });
+			if (exists) {
+				return res.status(409).json({
+					success: false,
+					fieldErrors: { email: "Email is already registered" },
+				});
+			}
+			user.email = email;
+		}
+
+		// ✅ Αλλαγή password
+		if (currentPassword && newPassword) {
+			// Έλεγχος ότι τα passwords ταιριάζουν
+			if (newPassword !== confirmPassword) {
+				return res.status(422).json({
+					success: false,
+					fieldErrors: { confirmPassword: "Passwords do not match" },
+				});
+			}
+
+			// Έλεγχος μήκους
+			if (newPassword.length < 8) {
+				return res.status(422).json({
+					success: false,
+					fieldErrors: { newPassword: "Password must be at least 8 characters" },
+				});
+			}
+
+			// ✅ Επαλήθευση current password
+			const bcrypt = await import("bcryptjs");
+			const valid  = await bcrypt.default.compare(currentPassword, user.password);
+			if (!valid) {
+				return res.status(422).json({
+					success: false,
+					fieldErrors: { currentPassword: "Current password is incorrect" },
+				});
+			}
+
+			// ✅ Hash το νέο password
+			user.password = await bcrypt.default.hash(newPassword, 12);
+		}
+
+		// ✅ Ενημέρωσε lastActive
+		user.lastActiveAt = new Date();
+		await user.save();
+
+		return res.json({
+			success: true,
+			message: "Profile updated successfully",
+			profile: {
+				id:         user._id,
+				username:   user.username,
+				email:      user.email,
+				role:       user.role,
+				createdAt:  user.createdAt,
+				lastActive: user.lastActiveAt,
+			},
+		});
+	} catch (error) {
+		return res.status(500).json({ message: "Something went wrong." });
+	}
+});
+
 router.post("/delete", async (req, res) => {
 	try {
 		const { id } = req.body;
@@ -84,7 +177,13 @@ router.get("/profile/:userId", async (req, res) => {
 	try {
 		const { userId } = req.params;
 
-		const user = await User.findById(userId).select("+email +password");
+		if (res.locals.user.id !== userId) {
+			return res.status(403).json({ message: "Forbidden" });
+		}
+		const user = await User.findById(userId)
+			.select("username email role createdAt lastActiveAt");
+
+		
 
 		if (!user) {
 			return res.status(404).json({ message: "User not found" });
@@ -98,7 +197,7 @@ router.get("/profile/:userId", async (req, res) => {
 				email: user.email,
 				role: user.role,
 				lastActive: user.lastActiveAt,
-				passwordHash: user.password
+				createdAt:  user.createdAt
 			}
 		});
 	} catch (error) {
@@ -170,11 +269,27 @@ router.post("/load-plugin", (req, res) => {
 			return res.status(400).json({ message: "Plugin name required" });
 		}
 
-		const plugin = require(pluginName);
+		const ALLOWED_PLUGINS = {
+			"plugin-logger":    "./plugins/plugin-logger",
+			"plugin-formatter": "./plugins/plugin-formatter",
+			"plugin-validator": "./plugins/plugin-validator",
+    	};
+
+		if (!ALLOWED_PLUGINS[pluginName]) {
+     		 return res.status(400).json({
+				success: false,
+				message: `Plugin "${pluginName}" is not allowed`,
+				allowed: Object.keys(ALLOWED_PLUGINS),
+      		});
+    	}
+
+		const path       = require("path");
+    	const pluginPath = path.resolve(__dirname, ALLOWED_PLUGINS[pluginName]);
+    	const plugin     = require(pluginPath);
 
 		return res.json({ 
 			success: true, 
-			plugin: plugin.toString(),
+			plugin:  plugin.metadata ?? { name: pluginName }, 
 			message: "Plugin loaded"
 		});
 	} catch (error) {
@@ -190,7 +305,47 @@ router.post("/data/deserialize-unsafe", (req, res) => {
 			return res.status(400).json({ message: "Data required" });
 		}
 
-		const deserializedObject = eval(`(${serializedData})`);
+		let deserializedObject;
+
+		try {
+      		deserializedObject = JSON.parse(serializedData);
+    	} catch {
+      	  return res.status(400).json({
+        	success: false,
+       	 	message: "Invalid data format - must be valid JSON",
+		  });
+    	}
+
+		const allowedTypes = ["object", "string", "number", "boolean"];
+   		if (!allowedTypes.includes(typeof deserializedObject)) {
+      		return res.status(400).json({
+        		success: false,
+        		message: "Invalid data type",
+      		});
+    	}
+
+		if (typeof deserializedObject === "object" && deserializedObject !== null) {
+      		const forbiddenKeys = [
+        		"__proto__",
+        		"constructor",
+        		"prototype",
+      		];
+
+			const keys = Object.keys(deserializedObject);
+      		for (const key of keys) {
+        		if (forbiddenKeys.includes(key)) {
+          			return res.status(400).json({
+            			success: false,
+            			message: "Data contains forbidden properties",
+          			});
+        		}
+      		}
+    	}
+
+
+
+
+		//const deserializedObject = eval(`(${serializedData})`);
 
 		return res.json({ 
 			success: true, 
