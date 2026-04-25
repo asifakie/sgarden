@@ -75,7 +75,8 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 const ButtonWithText = ({ text, icon, more, handler }) => (
-	<Button sx={{ height: "100%", display: "flex", flexDirection: "column", p: 1, mx: 1 }} onClick={(event) => handler(event)}>
+	<Button sx={{ height: "100%", display: "flex", flexDirection: "column", p: 1, mx: 1 }} onClick={(event) => handler(event)}
+	data-testid={testId} >
 		<div style={{ width: "100%", height: "100%" }}>
 			{icon}
 		</div>
@@ -107,6 +108,7 @@ const Header = ({ isAuthenticated }) => {
 				jwt.destroyToken();
 				navigate("/");
 			},
+			testId:  "profile-nav-link",
 		},
 	];
 
@@ -156,6 +158,7 @@ const Header = ({ isAuthenticated }) => {
 										text={button.text}
 										handler={button.handler}
 										more={button.more}
+										testId={button.testId} 
 									/>
 								))}
 							</Box>

@@ -1,8 +1,10 @@
 import express from "express";
-
+import path from "path"
+import { createRequire } from "module"; 
 import { email, validations } from "../utils/index.js";
 import { User, Invitation } from "../models/index.js";
 
+const require = createRequire(import.meta.url);
 const router = express.Router({ mergeParams: true });
 
 router.get("/decode/", (req, res) => res.json(res.locals.user));
@@ -263,6 +265,18 @@ router.post("/settings/update", (req, res) => {
 
 router.post("/load-plugin", (req, res) => {
 	try {
+			if (!res.locals.user) {
+				return res.status(401).json({
+					success: false,
+					message: "Unauthorized",
+			});
+		}
+			if (res.locals.user.role !== "admin") {
+				return res.status(403).json({
+					success: false,
+					message: "Forbidden - admin only",
+			});
+		}
 		const { pluginName } = req.body;
 
 		if (!pluginName) {
@@ -283,8 +297,20 @@ router.post("/load-plugin", (req, res) => {
       		});
     	}
 
-		const path       = require("path");
-    	const pluginPath = path.resolve(__dirname, ALLOWED_PLUGINS[pluginName]);
+		const pluginPath = path.resolve(
+			path.dirname(new URL(import.meta.url).pathname),
+			ALLOWED_PLUGINS[pluginName]
+		);
+    	const pluginsDir = path.resolve(
+			path.dirname(new URL(import.meta.url).pathname),
+			"./plugins"
+		);
+		if (!pluginPath.startsWith(pluginsDir)) {
+			return res.status(400).json({
+				success: false,
+				message: "Access denied - invalid plugin path",
+			});
+		}
     	const plugin     = require(pluginPath);
 
 		return res.json({ 
