@@ -251,7 +251,37 @@ router.post("/settings/update", (req, res) => {
 			notifications: true
 		};
 
-		const finalSettings = Object.assign({}, defaultSettings, userSettings);
+
+		const ALLOWED_SETTINGS = ["theme", "language", "notifications"];
+		const ALLOWED_VALUES = {
+			theme: ["light", "dark"],
+			language: ["en", "gr", "de", "fr"],
+			notifications: [true, false],
+		};
+		const safeSettings = {};
+
+		for (const key of ALLOWED_SETTINGS) {
+			if (key in userSettings) {
+				const value = userSettings[key];
+
+				// ✅ Έλεγχος αν η τιμή είναι επιτρεπτή
+				if (!ALLOWED_VALUES[key].includes(value)) {
+					return res.status(400).json({
+						success: false,
+						message: `Invalid value for "${key}"`,
+					});
+				}
+
+				safeSettings[key] = value;
+			}
+		}
+
+		// ✅ Object.create(null) - χωρίς prototype
+		const finalSettings = Object.assign(
+			Object.create(null),
+			defaultSettings,
+			safeSettings  // ✅ Μόνο τα ασφαλή settings
+		);
 
 		return res.json({
 			success: true,
